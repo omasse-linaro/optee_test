@@ -62,6 +62,7 @@ set (SRC
 	xtest_main.c
 	xtest_test.c
 	xtest_uuid_helpers.c
+	acipher_perf.c
 )
 if(CFG_SECURE_PARTITION AND CFG_SPMC_TESTS)
 	list (APPEND SRC ffa_spmc_1000.c)

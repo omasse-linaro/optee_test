@@ -25,4 +25,5 @@ target_include_directories(${PROJECT_NAME}
 	INTERFACE large/include
 	INTERFACE subkey1/include
 	INTERFACE subkey2/include
+	INTERFACE acipher_perf/include
 )
