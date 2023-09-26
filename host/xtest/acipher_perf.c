@@ -168,15 +168,73 @@ static TEEC_Result acipher_perf_prepare_op(unsigned int key_alg,
 }
 
 static TEEC_Result acipher_perf_encrypt(unsigned int key_alg, size_t key_size,
-			   unsigned int alg, unsigned int n)
+					unsigned int alg, unsigned int n,
+					unsigned int l)
 {
-	return TEEC_ERROR_GENERIC;
+	TEEC_Operation op = TEEC_OPERATION_INITIALIZER;
+	uint32_t ret_origin = 0;
+	TEEC_Result res = TEEC_ERROR_GENERIC;
+	struct timespec t0 = {};
+	struct timespec t1 = {};
+	struct statistics stats = {};
+
+	op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_INPUT, TEEC_NONE,
+					 TEEC_NONE, TEEC_NONE);
+
+	op.params[0].value.a = (uint32_t)alg;
+	op.params[0].value.b = (uint32_t)l;
+
+	while (n-- > 0) {
+		get_current_time(&t0);
+
+		res = TEEC_InvokeCommand(&sess, TA_ACIPHER_PERF_CMD_ENCRYPT,
+					 &op, &ret_origin);
+		if (res)
+			return res;
+
+		get_current_time(&t1);
+		update_stats(&stats, timespec_diff_us(&t0, &t1));
+	}
+
+	printf("Encryption\n");
+	print_stats(&stats, l);
+
+	return TEEC_SUCCESS;
 }
 
 static TEEC_Result acipher_perf_decrypt(unsigned int key_alg, size_t key_size,
-			   unsigned int alg, unsigned int n)
+					unsigned int alg, unsigned int n,
+					unsigned int l)
 {
-	return TEEC_ERROR_GENERIC;
+	TEEC_Operation op = TEEC_OPERATION_INITIALIZER;
+	uint32_t ret_origin = 0;
+	TEEC_Result res = TEEC_ERROR_GENERIC;
+	struct timespec t0 = {};
+	struct timespec t1 = {};
+	struct statistics stats = {};
+
+	op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_INPUT, TEEC_NONE,
+					 TEEC_NONE, TEEC_NONE);
+
+	op.params[0].value.a = (uint32_t)alg;
+	op.params[0].value.b = (uint32_t)l;
+
+	while (n-- > 0) {
+		get_current_time(&t0);
+
+		res = TEEC_InvokeCommand(&sess, TA_ACIPHER_PERF_CMD_DECRYPT,
+					 &op, &ret_origin);
+		if (res)
+			return res;
+
+		get_current_time(&t1);
+		update_stats(&stats, timespec_diff_us(&t0, &t1));
+	}
+
+	printf("Decryption\n");
+	print_stats(&stats, l);
+
+	return TEEC_SUCCESS;
 }
 
 static TEEC_Result acipher_perf_sign(unsigned int key_alg, size_t key_size,
@@ -191,12 +249,12 @@ static TEEC_Result acipher_perf_verify(unsigned int key_alg, size_t key_size,
 	return TEEC_ERROR_GENERIC;
 }
 
-static TEEC_Result acipher_perf_op(unsigned int key_alg, size_t key_size,
-			   unsigned int alg, unsigned int n)
+static TEEC_Result __unused acipher_perf_op(unsigned int key_alg, size_t key_size,
+				   unsigned int alg, unsigned int n, unsigned int l)
 {
 	TEEC_Result ret = TEEC_ERROR_GENERIC;
 
-	switch(alg) {
+	switch (alg) {
 	case TA_ALG_RSAES_PKCS1_V1_5:
 	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA1:
 	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA224:
@@ -205,13 +263,14 @@ static TEEC_Result acipher_perf_op(unsigned int key_alg, size_t key_size,
 	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA512:
 	case TA_ALG_RSA_NOPAD:
 	case TA_ALG_SM2_PKE:
-		ret = acipher_perf_encrypt(key_alg, key_size, alg, n);
+		ret = acipher_perf_encrypt(key_alg, key_size, alg, n, l);
 		if (ret)
 			return ret;
 
-		ret = acipher_perf_decrypt(key_alg, key_size, alg, n);
+		ret = acipher_perf_decrypt(key_alg, key_size, alg, n, l);
 		if (ret)
 			return ret;
+
 		break;
 	case TA_ALG_RSASSA_PKCS1_V1_5_MD5:
 	case TA_ALG_RSASSA_PKCS1_V1_5_SHA1:
@@ -258,29 +317,39 @@ static void usage(const char *progname, unsigned int keysize,
 	fprintf(stderr, " [-l LOOP] [-a ALGO] [-n LOOP] [-r|--no-inited]");
 	fprintf(stderr, " [-v [-v]] [-w SEC]");
 	fprintf(stderr, "\n");
-	fprintf(stderr, "Asymmetric cipher performance testing tool for OP-TEE\n");
+	fprintf(stderr,
+		"Asymmetric cipher performance testing tool for OP-TEE\n");
 	fprintf(stderr, "\n");
 	fprintf(stderr, "Options:\n");
 	fprintf(stderr, "  -h|--help     Print this help and exit\n");
-	fprintf(stderr, "  -s SIZE       Key size in bits (if supported) [%d]:\n", keysize);
-	fprintf(stderr, "                - RSA: 256, 512, 768, 1024, 1535, 2048\n");
-	fprintf(stderr, "                - DSA_SHA1: between 512 and 1024 (multiple of 64 bits)\n");
+	fprintf(stderr,
+		"  -s SIZE       Key size in bits (if supported) [%d]:\n",
+		keysize);
+	fprintf(stderr,
+		"                - RSA: 256, 512, 768, 1024, 1535, 2048\n");
+	fprintf(stderr,
+		"                - DSA_SHA1: between 512 and 1024 (multiple of 64 bits)\n");
 	fprintf(stderr, "                - DSA_SHA224: 2048\n");
 	fprintf(stderr, "                - DSA_SHA256: 2048, 3072\n");
-	fprintf(stderr, "                - DH: between 256 and 2048 (multiple of 8 bits)\n");
-	fprintf(stderr, "                - ECDSA/ECDH: 192, 224, 256, 384, 521 (equal to the curve)\n");
+	fprintf(stderr,
+		"                - DH: between 256 and 2048 (multiple of 8 bits)\n");
+	fprintf(stderr,
+		"                - ECDSA/ECDH: 192, 224, 256, 384, 521 (equal to the curve)\n");
 	fprintf(stderr, "  -l LOOP       Inner loop iterations [%u]\n", l);
 	fprintf(stderr, "  -n LOOP       Outer test loop iterations [%u]\n", n);
 	fprintf(stderr, "  -a ALGO       Algorithms (if supported):\n");
 	fprintf(stderr, "                - Encrypt/Decrypt operation:\n");
 	fprintf(stderr, "                  - RSAES_PKCS1_V1_5\n");
-	fprintf(stderr, "                  - RSAES_PKCS1_OAEP_MGF1_SHA[1|224|256|384|512]\n");
+	fprintf(stderr,
+		"                  - RSAES_PKCS1_OAEP_MGF1_SHA[1|224|256|384|512]\n");
 	fprintf(stderr, "                  - RSA_NOPAD\n");
 	fprintf(stderr, "                  - SM2_PKE\n");
 	fprintf(stderr, "                - Sign/Verify operation:\n");
 	fprintf(stderr, "                  - RSASSA_PKCS1_V1_5_MD5\n");
-	fprintf(stderr, "                  - RSASSA_PKCS1_V1_5_SHA[1|224|256|384|512]\n");
-	fprintf(stderr, "                  - RSASSA_PKCS1_PSS_MGF1_SHA[1|224|256|384|512]\n");
+	fprintf(stderr,
+		"                  - RSASSA_PKCS1_V1_5_SHA[1|224|256|384|512]\n");
+	fprintf(stderr,
+		"                  - RSASSA_PKCS1_PSS_MGF1_SHA[1|224|256|384|512]\n");
 	fprintf(stderr, "                  - DSA_SHA[1|224|256]\n");
 	fprintf(stderr, "                  - ECDSA_SHA[1|224|256|384|512]\n");
 	fprintf(stderr, "                  - ED25519\n");
@@ -296,11 +365,17 @@ static void usage(const char *progname, unsigned int keysize,
 	fprintf(stderr, "                  - SM2_DSA\n");
 	fprintf(stderr, "                  - SM2_KEP\n");
 	fprintf(stderr, "                  - SM2_PKE\n");
-	fprintf(stderr, "  --not-inited  Do not initialize input buffer content.\n");
-	fprintf(stderr, "  -r|--random   Get input data from /dev/urandom (default: all zeros)\n");
-	fprintf(stderr, "  -v            Be verbose (use twice for greater effect)\n");
-	fprintf(stderr, "  -w|--warmup SEC  Warm-up time in seconds: execute a busy loop before\n");
-	fprintf(stderr, "                   the test to mitigate the effects of cpufreq etc. [%u]\n", warmup);
+	fprintf(stderr,
+		"  --not-inited  Do not initialize input buffer content.\n");
+	fprintf(stderr,
+		"  -r|--random   Get input data from /dev/urandom (default: all zeros)\n");
+	fprintf(stderr,
+		"  -v            Be verbose (use twice for greater effect)\n");
+	fprintf(stderr,
+		"  -w|--warmup SEC  Warm-up time in seconds: execute a busy loop before\n");
+	fprintf(stderr,
+		"                   the test to mitigate the effects of cpufreq etc. [%u]\n",
+		warmup);
 }
 
 #define NEXT_ARG(i) \
@@ -519,7 +594,7 @@ int acipher_perf_runner_cmd_parser(int argc, char *argv[])
 		if (res)
 			return -1;
 
-		res = acipher_perf_op(key_alg, key_size, alg, n);
+		res = acipher_perf_op(key_alg, key_size, alg, n, l);
 		if (res)
 			return -1;
 	}

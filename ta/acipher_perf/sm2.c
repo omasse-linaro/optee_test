@@ -45,3 +45,12 @@ TEE_Result sm2_prepare_key(uint32_t ta_key, TEE_ObjectHandle *key,
 
 	return TEE_SUCCESS;
 }
+
+TEE_Result sm2_prepare_encrypt_decrypt(uint32_t ta_alg, size_t key_size_bits,
+				       TEE_OperationHandle *encrypt_op,
+				       TEE_OperationHandle *decrypt_op,
+				       struct ta_buf *input,
+				       struct ta_buf *output)
+{
+	return TEE_ERROR_NOT_IMPLEMENTED;
+}

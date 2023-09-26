@@ -57,6 +57,24 @@ static TEE_Result (*static_prepare_keygen[])(uint32_t ta_key,
 	/* TA_KEY_SM2_KEP */ sm2_prepare_key,
 	/* TA_KEY_SM2_PKE */ sm2_prepare_key
 };
+
+static TEE_Result (*static_prepare_acipher[])(uint32_t ta_alg, size_t key_size_bits,
+					      TEE_OperationHandle *encrypt_op,
+					      TEE_OperationHandle *decrypt_op,
+					      struct ta_buf *input,
+					      struct ta_buf *output) =
+{
+	/* TA_ALG_NONE */ NULL,
+	/* TA_ALG_RSAES_PKCS1_V1_5 */ rsa_prepare_encrypt_decrypt,
+	/* TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA1 */ rsa_prepare_encrypt_decrypt,
+	/* TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA224 */ rsa_prepare_encrypt_decrypt,
+	/* TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA256 */ rsa_prepare_encrypt_decrypt,
+	/* TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA384 */ rsa_prepare_encrypt_decrypt,
+	/* TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA512 */ rsa_prepare_encrypt_decrypt,
+	/* TA_ALG_RSA_NOPAD */ rsa_prepare_encrypt_decrypt,
+	/* TA_ALG_SM2_PKE */ sm2_prepare_encrypt_decrypt,
+};
+
 TEE_Result prepare_keygen(uint32_t ta_key,
 			  size_t key_size_bits)
 {
@@ -130,7 +148,46 @@ TEE_Result keygen(uint32_t ta_key, size_t key_size_bits, unsigned int loops)
 
 TEE_Result prepare_op(uint32_t ta_key, size_t key_size_bits, uint32_t ta_alg)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	if (ta_key != TA_KEY_INVALID) {
+		res = prepare_keygen(ta_key, key_size_bits);
+		if (res)
+			return res;
+
+		res = keygen(ta_key, key_size_bits, 1);
+		if (res)
+			return res;
+	}
+
+	if (ta_alg <= TA_ALG_SM2_PKE)
+		res = static_prepare_acipher[ta_alg](ta_alg, key_size_bits,
+						     &encrypt_op, &decrypt_op,
+						     &input, &output);
+	else
+		res = TEE_ERROR_NOT_SUPPORTED;
+
+	if (res) {
+		EMSG("Fail to prepare operation");
+		free_ta_ctx();
+		return res;
+	}
+
+	if (encrypt_op != TEE_HANDLE_NULL && decrypt_op != TEE_HANDLE_NULL) {
+		res = TEE_SetOperationKey(encrypt_op, operation_key1);
+		if (res) {
+			EMSG("Fail to set key");
+			return res;
+		}
+
+		res = TEE_SetOperationKey(decrypt_op, operation_key1);
+		if (res) {
+			EMSG("Fail to set key");
+			return res;
+		}
+	}
+
+	return TEE_SUCCESS;
 }
 
 TEE_Result sign(uint32_t ta_alg, unsigned int loop)
@@ -145,10 +202,65 @@ TEE_Result verify(uint32_t ta_alg, unsigned int loop)
 
 TEE_Result encrypt(uint32_t ta_alg, unsigned int loop)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	switch (ta_alg) {
+	case TA_ALG_RSAES_PKCS1_V1_5:
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA1:
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA224:
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA256:
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA384:
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA512:
+	case TA_ALG_RSA_NOPAD:
+		break;
+	default:
+		return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	while (loop-- > 0) {
+		res = TEE_AsymmetricEncrypt(encrypt_op, NULL, 0, input.data,
+					    input.size, output.data,
+					    &output.size);
+		if (res) {
+			EMSG("Fail to encrypt 0x%x", res);
+			return res;
+		}
+	}
+
+	return TEE_SUCCESS;
 }
 
 TEE_Result decrypt(uint32_t ta_alg, unsigned int loop)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+
+	switch (ta_alg) {
+	case TA_ALG_RSAES_PKCS1_V1_5:
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA1:
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA224:
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA256:
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA384:
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA512:
+	case TA_ALG_RSA_NOPAD:
+		break;
+	default:
+		return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	while (loop-- > 0) {
+		res = TEE_AsymmetricDecrypt(decrypt_op, NULL, 0, output.data,
+					    output.size, input.data,
+					    &input.size);
+		if (res) {
+			EMSG("Fail to decrypt 0x%x", res);
+			return res;
+		}
+	}
+
+	return TEE_SUCCESS;
+}
+
+TEE_Result derive(uint32_t ta_alg, unsigned int loop)
 {
 	return TEE_ERROR_NOT_IMPLEMENTED;
 }

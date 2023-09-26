@@ -123,10 +123,12 @@ static TEE_Result ta_cmd_verify(uint32_t nParamTypes, TEE_Param pParams[4])
  * Benchmark encrypt operation
  *
  * [in] params[0].value.a	Crypto algorithm (TA_ALG_*)
- * [in] params[0].value.b	Loop count
+ * [in] params[0].value.b	Loops
  */
 static TEE_Result ta_cmd_encrypt(uint32_t nParamTypes, TEE_Param pParams[4])
 {
+	uint32_t ta_alg = 0;
+	unsigned int loops = 0;
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
@@ -134,17 +136,22 @@ static TEE_Result ta_cmd_encrypt(uint32_t nParamTypes, TEE_Param pParams[4])
 	if (exp_param_types != nParamTypes)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	return encrypt(pParams[0].value.a, pParams[0].value.b);
+	ta_alg = pParams[0].value.a;
+	loops = pParams[0].value.b;
+
+	return encrypt(ta_alg, loops);
 }
 
 /*
  * Benchmark decrypt operation
  *
  * [in] params[0].value.a	Crypto algorithm (TA_ALG_*)
- * [in] params[0].value.b	Loop count
+ * [in] params[0].value.b	Loops
  */
 static TEE_Result ta_cmd_decrypt(uint32_t nParamTypes, TEE_Param pParams[4])
 {
+	uint32_t ta_alg = 0;
+	unsigned int loops = 0;
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
@@ -152,7 +159,10 @@ static TEE_Result ta_cmd_decrypt(uint32_t nParamTypes, TEE_Param pParams[4])
 	if (exp_param_types != nParamTypes)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	return decrypt(pParams[0].value.a, pParams[0].value.b);
+	ta_alg = pParams[0].value.a;
+	loops = pParams[0].value.b;
+
+	return decrypt(ta_alg, loops);
 }
 
 TEE_Result TA_CreateEntryPoint(void)

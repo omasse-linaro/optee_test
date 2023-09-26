@@ -6,6 +6,7 @@
 #include "tee_api_types.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
 #include <tee_ta_api.h>
 #include <assert.h>
 
@@ -60,6 +61,93 @@ TEE_Result rsa_prepare_key(uint32_t ta_key __unused, TEE_ObjectHandle *key,
 		EMSG("Fail to allocate the keypair");
 		return res;
 	}
+
+	return TEE_SUCCESS;
+}
+
+TEE_Result rsa_prepare_encrypt_decrypt(uint32_t ta_alg, size_t key_size_bits,
+				       TEE_OperationHandle *encrypt_op,
+				       TEE_OperationHandle *decrypt_op,
+				       struct ta_buf *input,
+				       struct ta_buf *output)
+{
+	TEE_Result res = TEE_ERROR_GENERIC;
+	uint32_t tee_alg = 0;
+	size_t input_size = 0;
+	size_t output_size = 0;
+
+	assert(encrypt_op);
+	assert(decrypt_op);
+	assert(input);
+	assert(output);
+
+	switch (ta_alg) {
+	case TA_ALG_RSAES_PKCS1_V1_5:
+		tee_alg = TEE_ALG_RSAES_PKCS1_V1_5;
+		input_size = (key_size_bits / 8) - 11;
+		output_size = key_size_bits / 8;
+		break;
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA1:
+		tee_alg = TEE_ALG_RSAES_PKCS1_OAEP_MGF1_SHA1;
+		input_size = MAX_SIZE_OAEP(key_size_bits, 160);
+		output_size = key_size_bits / 8;
+		break;
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA224:
+		tee_alg = TEE_ALG_RSAES_PKCS1_OAEP_MGF1_SHA224;
+		input_size = MAX_SIZE_OAEP(key_size_bits, 224);
+		output_size = key_size_bits / 8;
+		break;
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA256:
+		tee_alg = TEE_ALG_RSAES_PKCS1_OAEP_MGF1_SHA256;
+		input_size = MAX_SIZE_OAEP(key_size_bits, 256);
+		output_size = key_size_bits / 8;
+		break;
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA384:
+		tee_alg = TEE_ALG_RSAES_PKCS1_OAEP_MGF1_SHA384;
+		input_size = MAX_SIZE_OAEP(key_size_bits, 384);
+		output_size = key_size_bits / 8;
+		break;
+	case TA_ALG_RSAES_PKCS1_OAEP_MGF1_SHA512:
+		tee_alg = TEE_ALG_RSAES_PKCS1_OAEP_MGF1_SHA512;
+		input_size = MAX_SIZE_OAEP(key_size_bits, 512);
+		output_size = key_size_bits / 8;
+		break;
+	case TA_ALG_RSA_NOPAD:
+		tee_alg = TEE_ALG_RSA_NOPAD;
+		input_size = key_size_bits / 8;
+		output_size = key_size_bits / 8;
+		break;
+	default:
+		return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	/* MAX_SIZE_OAEP can return zero */
+	if (!input_size || !output_size)
+		return TEE_ERROR_NOT_SUPPORTED;
+
+	res = TEE_AllocateOperation(encrypt_op, tee_alg, TEE_MODE_ENCRYPT,
+				    4096);
+	if (res) {
+		EMSG("Fail to allocate encrypt operation");
+		return res;
+	}
+
+	res = TEE_AllocateOperation(decrypt_op, tee_alg, TEE_MODE_DECRYPT,
+				    4096);
+	if (res) {
+		EMSG("Fail to allocate decrypt operation");
+		return res;
+	}
+
+	input->data = calloc(1, input_size);
+	if (!input->data)
+		return TEE_ERROR_OUT_OF_MEMORY;
+	input->size = input_size;
+
+	output->data = calloc(1, output_size);
+	if (!output->data)
+		return TEE_ERROR_OUT_OF_MEMORY;
+	output->size = output_size;
 
 	return TEE_SUCCESS;
 }
