@@ -6,6 +6,8 @@
 #include "tee_api_types.h"
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <string.h>
 #include <tee_ta_api.h>
 #include <assert.h>
 #include <util.h>
@@ -113,4 +115,79 @@ TEE_Result ecdh_prepare_key(uint32_t ta_key, TEE_ObjectHandle *key,
 	}
 
 	return res;
+}
+
+TEE_Result ecdsa_prepare_sign_verify(uint32_t ta_alg, size_t key_size_bits,
+				     TEE_OperationHandle *sign_op,
+				     TEE_OperationHandle *verify_op,
+				     struct ta_buf *input,
+				     struct ta_buf *output)
+{
+	uint32_t tee_alg = 0;
+	TEE_Result res = TEE_ERROR_GENERIC;
+	const uint8_t *digest = NULL;
+	size_t digest_size = 0;
+	size_t max_key_size = 0;
+
+	switch (ta_alg) {
+	case TA_ALG_ECDSA_SHA1:
+		tee_alg = TEE_ALG_ECDSA_SHA1;
+		digest = digest_sha1;
+		digest_size = sizeof(digest_sha1);
+		max_key_size = key_size_bits;
+		break;
+	case TA_ALG_ECDSA_SHA224:
+		tee_alg = TEE_ALG_ECDSA_SHA224;
+		digest = digest_sha224;
+		digest_size = sizeof(digest_sha224);
+		max_key_size = key_size_bits;
+		break;
+	case TA_ALG_ECDSA_SHA256:
+		tee_alg = TEE_ALG_ECDSA_SHA256;
+		digest = digest_sha256;
+		digest_size = sizeof(digest_sha256);
+		max_key_size = key_size_bits;
+		break;
+	case TA_ALG_ECDSA_SHA384:
+		tee_alg = TEE_ALG_ECDSA_SHA384;
+		digest = digest_sha384;
+		digest_size = sizeof(digest_sha384);
+		max_key_size = key_size_bits;
+		break;
+	case TA_ALG_ECDSA_SHA512:
+		tee_alg = TEE_ALG_ECDSA_SHA512;
+		digest = digest_sha512;
+		digest_size = sizeof(digest_sha512);
+		max_key_size = 521;
+		break;
+	default:
+		return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	input->data = calloc(1, digest_size);
+	if (!input->data)
+		return TEE_ERROR_OUT_OF_MEMORY;
+	input->size = digest_size;
+	memcpy(input->data, digest, digest_size);
+
+	output->data = calloc(1, (key_size_bits / 8) * 2);
+	if (!output->data)
+		return TEE_ERROR_OUT_OF_MEMORY;
+	output->size = (key_size_bits / 8) * 2;
+
+	res = TEE_AllocateOperation(sign_op, tee_alg, TEE_MODE_SIGN,
+				    max_key_size);
+	if (res) {
+		EMSG("Fail to allocate sign operation");
+		return res;
+	}
+
+	res = TEE_AllocateOperation(verify_op, tee_alg, TEE_MODE_VERIFY,
+				    max_key_size);
+	if (res) {
+		EMSG("Fail to allocate verify operation");
+		return res;
+	}
+
+	return TEE_SUCCESS;
 }

@@ -91,6 +91,9 @@ static TEE_Result ta_cmd_prepare_op(uint32_t nParamTypes, TEE_Param pParams[4])
  */
 static TEE_Result ta_cmd_sign(uint32_t nParamTypes, TEE_Param pParams[4])
 {
+	uint32_t ta_alg = 0;
+	unsigned int loops = 0;
+
 	uint32_t exp_param_types = TEE_PARAM_TYPES(TEE_PARAM_TYPE_VALUE_INPUT,
 						   TEE_PARAM_TYPE_NONE,
 						   TEE_PARAM_TYPE_NONE,
@@ -98,7 +101,10 @@ static TEE_Result ta_cmd_sign(uint32_t nParamTypes, TEE_Param pParams[4])
 	if (exp_param_types != nParamTypes)
 		return TEE_ERROR_BAD_PARAMETERS;
 
-	return sign(pParams[0].value.a, pParams[0].value.b);
+	ta_alg = pParams[0].value.a;
+	loops = pParams[0].value.b;
+
+	return sign(ta_alg, loops);
 }
 
 /*

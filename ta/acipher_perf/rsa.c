@@ -7,6 +7,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <tee_ta_api.h>
 #include <assert.h>
 
@@ -152,101 +153,80 @@ TEE_Result rsa_prepare_encrypt_decrypt(uint32_t ta_alg, size_t key_size_bits,
 	return TEE_SUCCESS;
 }
 
-// TEE_Result rsa_get_buffer_sizes(uint32_t tee_alg, size_t key_size_bits,
-// 				size_t *input_size, size_t *output_size)
-// {
-// 	assert(input_size);
-// 	assert(output_size);
+TEE_Result rsa_prepare_sign_verify(uint32_t ta_alg, size_t key_size_bits,
+				   TEE_OperationHandle *sign_op,
+				   TEE_OperationHandle *verify_op,
+				   struct ta_buf *input, struct ta_buf *output)
+{
+	uint32_t tee_alg = 0;
+	TEE_Result res = TEE_ERROR_GENERIC;
+	const uint8_t *digest = NULL;
+	size_t digest_size = 0;
 
-// 	switch (tee_alg) {
-// 	/*
-// 	 * For encryption/decryption RSA algorithms, allocate the maximum size
-// 	 * possible as an input.
-// 	 */
-// 	case TEE_ALG_RSAES_PKCS1_V1_5:
-// 		*input_size = (key_size_bits / 8) - 11;
-// 		*output_size = key_size_bits / 8;
-// 		break;
-// 	case TEE_ALG_RSAES_PKCS1_OAEP_MGF1_SHA1:
-// 		*input_size = MAX_SIZE_OAEP(key_size_bits, 160);
-// 		*output_size = key_size_bits / 8;
-// 		break;
-// 	case TEE_ALG_RSAES_PKCS1_OAEP_MGF1_SHA224:
-// 		*input_size = MAX_SIZE_OAEP(key_size_bits, 224);
-// 		*output_size = key_size_bits / 8;
-// 		break;
-// 	case TEE_ALG_RSAES_PKCS1_OAEP_MGF1_SHA256:
-// 		*input_size = MAX_SIZE_OAEP(key_size_bits, 256);
-// 		*output_size = key_size_bits / 8;
-// 		break;
-// 	case TEE_ALG_RSAES_PKCS1_OAEP_MGF1_SHA384:
-// 		*input_size = MAX_SIZE_OAEP(key_size_bits, 384);
-// 		*output_size = key_size_bits / 8;
-// 		break;
-// 	case TEE_ALG_RSAES_PKCS1_OAEP_MGF1_SHA512:
-// 		*input_size = MAX_SIZE_OAEP(key_size_bits, 512);
-// 		*output_size = key_size_bits / 8;
-// 		break;
-// 	case TEE_ALG_RSA_NOPAD:
-// 		*input_size = key_size_bits / 8;
-// 		*output_size = key_size_bits / 8;
-// 		break;
-// 	/*
-// 	 * For these operations, the input message is hashed and
-// 	 * encoded, so the input message length has an impact on the
-// 	 * hashing operation, not the sign/verify operations.
-// 	 * 1024 bits buffer size is arbitrary.
-// 	 */
-// 	case TEE_ALG_RSASSA_PKCS1_V1_5_MD5:
-// 		*input_size = 1024 / 8;
-// 		*output_size = 128 / 8;
-// 		break;
-// 	case TEE_ALG_RSASSA_PKCS1_V1_5_SHA1:
-// 		*input_size = 1024 / 8;
-// 		*output_size = 160 / 8;
-// 		break;
-// 	case TEE_ALG_RSASSA_PKCS1_V1_5_SHA224:
-// 		*input_size = 1024 / 8;
-// 		*output_size = 224 / 8;
-// 		break;
-// 	case TEE_ALG_RSASSA_PKCS1_V1_5_SHA256:
-// 		*input_size = 1024 / 8;
-// 		*output_size = 256 / 8;
-// 		break;
-// 	case TEE_ALG_RSASSA_PKCS1_V1_5_SHA384:
-// 		*input_size = 1024 / 8;
-// 		*output_size = 384 / 8;
-// 		break;
-// 	case TEE_ALG_RSASSA_PKCS1_V1_5_SHA512:
-// 		*input_size = 1024 / 8;
-// 		*output_size = 512 / 8;
-// 		break;
-// 	case TEE_ALG_RSASSA_PKCS1_PSS_MGF1_SHA1:
-// 		*input_size = 1024 / 8;
-// 		*output_size = 160 / 8;
-// 		break;
-// 	case TEE_ALG_RSASSA_PKCS1_PSS_MGF1_SHA224:
-// 		*input_size = 1024 / 8;
-// 		*output_size = 224 / 8;
-// 		break;
-// 	case TEE_ALG_RSASSA_PKCS1_PSS_MGF1_SHA256:
-// 		*input_size = 1024 / 8;
-// 		*output_size = 256 / 8;
-// 		break;
-// 	case TEE_ALG_RSASSA_PKCS1_PSS_MGF1_SHA384:
-// 		*input_size = 1024 / 8;
-// 		*output_size = 384 / 8;
-// 		break;
-// 	case TEE_ALG_RSASSA_PKCS1_PSS_MGF1_SHA512:
-// 		*input_size = 1024 / 8;
-// 		*output_size = 512 / 8;
-// 		break;
-// 	default:
-// 		return TEE_ERROR_NOT_SUPPORTED;
-// 	}
+	switch (ta_alg) {
+	case TA_ALG_RSASSA_PKCS1_V1_5_MD5:
+		tee_alg = TEE_ALG_RSASSA_PKCS1_V1_5_MD5;
+		digest = digest_md5;
+		digest_size = sizeof(digest_md5);
+		break;
+	case TA_ALG_RSASSA_PKCS1_V1_5_SHA1:
+	case TA_ALG_RSASSA_PKCS1_PSS_MGF1_SHA1:
+		tee_alg = TEE_ALG_RSASSA_PKCS1_V1_5_SHA1;
+		digest = digest_sha1;
+		digest_size = sizeof(digest_sha1);
+		break;
+	case TA_ALG_RSASSA_PKCS1_V1_5_SHA224:
+	case TA_ALG_RSASSA_PKCS1_PSS_MGF1_SHA224:
+		tee_alg = TEE_ALG_RSASSA_PKCS1_V1_5_SHA224;
+		digest = digest_sha224;
+		digest_size = sizeof(digest_sha224);
+		break;
+	case TA_ALG_RSASSA_PKCS1_V1_5_SHA256:
+	case TA_ALG_RSASSA_PKCS1_PSS_MGF1_SHA256:
+		tee_alg = TEE_ALG_RSASSA_PKCS1_V1_5_SHA256;
+		digest = digest_sha256;
+		digest_size = sizeof(digest_sha256);
+		break;
+	case TA_ALG_RSASSA_PKCS1_V1_5_SHA384:
+	case TA_ALG_RSASSA_PKCS1_PSS_MGF1_SHA384:
+		tee_alg = TEE_ALG_RSASSA_PKCS1_V1_5_SHA384;
+		digest = digest_sha384;
+		digest_size = sizeof(digest_sha384);
+		break;
+	case TA_ALG_RSASSA_PKCS1_V1_5_SHA512:
+	case TA_ALG_RSASSA_PKCS1_PSS_MGF1_SHA512:
+		tee_alg = TEE_ALG_RSASSA_PKCS1_V1_5_SHA512;
+		digest = digest_sha512;
+		digest_size = sizeof(digest_sha512);
+		break;
+	default:
+		return TEE_ERROR_NOT_SUPPORTED;
+	}
 
-// 	if (*input_size == 0 || *output_size == 0)
-// 		return TEE_ERROR_NOT_SUPPORTED;
+	input->data = calloc(1, digest_size);
+	if (!input->data)
+		return TEE_ERROR_OUT_OF_MEMORY;
+	input->size = digest_size;
+	memcpy(input->data, digest, digest_size);
 
-// 	return TEE_SUCCESS;
-// }
+	output->data = calloc(1, key_size_bits / 8);
+	if (!output->data)
+		return TEE_ERROR_OUT_OF_MEMORY;
+	output->size = key_size_bits / 8;
+
+	res = TEE_AllocateOperation(sign_op, tee_alg, TEE_MODE_SIGN,
+				    key_size_bits);
+	if (res) {
+		EMSG("Fail to allocate encrypt operation");
+		return res;
+	}
+
+	res = TEE_AllocateOperation(verify_op, tee_alg, TEE_MODE_VERIFY,
+				    key_size_bits);
+	if (res) {
+		EMSG("Fail to allocate decrypt operation");
+		return res;
+	}
+
+	return TEE_SUCCESS;
+}
