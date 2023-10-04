@@ -8,3 +8,4 @@ srcs-y += ecc.c
 srcs-y += ed25519.c
 srcs-y += x25519.c
 srcs-y += sm2.c
+srcs-y += hkdf.c

@@ -305,6 +305,40 @@ static TEEC_Result acipher_perf_verify(unsigned int key_alg, size_t key_size,
 	return TEEC_SUCCESS;
 }
 
+static TEEC_Result acipher_perf_derive(unsigned int key_alg, size_t key_size,
+				       unsigned int alg, unsigned int n, unsigned int l)
+{
+	TEEC_Operation op = TEEC_OPERATION_INITIALIZER;
+	uint32_t ret_origin = 0;
+	TEEC_Result res = TEEC_ERROR_GENERIC;
+	struct timespec t0 = {};
+	struct timespec t1 = {};
+	struct statistics stats = {};
+
+	op.paramTypes = TEEC_PARAM_TYPES(TEEC_VALUE_INPUT, TEEC_NONE,
+					 TEEC_NONE, TEEC_NONE);
+
+	op.params[0].value.a = (uint32_t)alg;
+	op.params[0].value.b = (uint32_t)l;
+
+	while (n-- > 0) {
+		get_current_time(&t0);
+
+		res = TEEC_InvokeCommand(&sess, TA_ACIPHER_PERF_CMD_DERIVE,
+					 &op, &ret_origin);
+		if (res)
+			return res;
+
+		get_current_time(&t1);
+		update_stats(&stats, timespec_diff_us(&t0, &t1));
+	}
+
+	printf("Derive\n");
+	print_stats(&stats, l);
+
+	return TEEC_SUCCESS;
+}
+
 static TEEC_Result __unused acipher_perf_op(unsigned int key_alg, size_t key_size,
 				   unsigned int alg, unsigned int n, unsigned int l)
 {
@@ -357,6 +391,16 @@ static TEEC_Result __unused acipher_perf_op(unsigned int key_alg, size_t key_siz
 		if (ret)
 			return ret;
 		break;
+	case TA_ALG_DH_DERIVE_SHARED_SECRET:
+	case TA_ALG_ECDH_DERIVE_SHARED_SECRET:
+	case TA_ALG_X25519:
+	case TA_ALG_X448:
+	case TA_ALG_SM2_KEP:
+	case TA_ALG_HKDF:
+		ret = acipher_perf_derive(key_alg, key_size, alg, n, l);
+		if (ret)
+			return ret;
+		break;
 	case TA_ALG_INVALID:
 	default:
 		return TEEC_ERROR_BAD_PARAMETERS;
@@ -400,6 +444,13 @@ static void usage(const char *progname, unsigned int keysize,
 	fprintf(stderr, "                  - ECDSA_SHA[1|224|256|384|512]\n");
 	fprintf(stderr, "                  - ED25519\n");
 	fprintf(stderr, "                  - SM2_DSA_SM3\n");
+	fprintf(stderr, "                - Derive key operation\n");
+	fprintf(stderr, "                  - DH\n");
+	fprintf(stderr, "                  - ECDH\n");
+	fprintf(stderr, "                  - X25519\n");
+	fprintf(stderr, "                  - X448\n");
+	fprintf(stderr, "                  - SM2_KEP\n");
+	fprintf(stderr, "                  - HKDF\n");
 	fprintf(stderr, "  -k KEY         Keypair to use\n");
 	fprintf(stderr, "                  - RSA\n");
 	fprintf(stderr, "                  - DSA\n");
@@ -415,8 +466,7 @@ static void usage(const char *progname, unsigned int keysize,
 	fprintf(stderr,	"  -r|--random   Get input data from /dev/urandom (default: all zeros)\n");
 	fprintf(stderr,	"  -v            Be verbose (use twice for greater effect)\n");
 	fprintf(stderr,	"  -w|--warmup SEC  Warm-up time in seconds: execute a busy loop before\n");
-	fprintf(stderr,	"                   the test to mitigate the effects of cpufreq etc. [%u]\n",
-		warmup);
+	fprintf(stderr,	"                   the test to mitigate the effects of cpufreq etc. [%u]\n", warmup);
 }
 
 #define NEXT_ARG(i) \
@@ -534,6 +584,18 @@ int acipher_perf_runner_cmd_parser(int argc, char *argv[])
 				alg = TA_ALG_ED25519;
 			else if (!strcasecmp(argv[i], "SM2_DSA_SM3"))
 				alg = TA_ALG_SM2_DSA_SM3;
+			else if (!strcasecmp(argv[i], "DH"))
+				alg = TA_ALG_DH_DERIVE_SHARED_SECRET;
+			else if (!strcasecmp(argv[i], "ECDH"))
+				alg = TA_ALG_ECDH_DERIVE_SHARED_SECRET;
+			else if (!strcasecmp(argv[i], "X25519"))
+				alg = TA_ALG_X25519;
+			else if (!strcasecmp(argv[i], "X448"))
+				alg = TA_ALG_X448;
+			else if (!strcasecmp(argv[i], "SM2_KEP"))
+				alg = TA_ALG_SM2_KEP;
+			else if (!strcasecmp(argv[i], "HKDF"))
+				alg = TA_ALG_HKDF;
 			else {
 				fprintf(stderr, "%s, invalid algorithm\n",
 					argv[0]);
@@ -606,7 +668,7 @@ int acipher_perf_runner_cmd_parser(int argc, char *argv[])
 			return 1;
 		}
 	}
-	if (key_alg == TA_KEY_INVALID) {
+	if ((key_alg == TA_KEY_INVALID) && (alg != TA_ALG_HKDF)) {
 		fprintf(stderr, "%s: -k KEY is mandatory\n", argv[0]);
 		usage(argv[0], key_size, warmup, l, n);
 		return 1;

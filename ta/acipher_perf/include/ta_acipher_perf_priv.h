@@ -108,6 +108,33 @@ TEE_Result sm2_dsa_sm3_prepare_sign_verify(uint32_t ta_alg,
 					   TEE_OperationHandle *verify_op,
 					   struct ta_buf *input,
 					   struct ta_buf *output);
+TEE_Result dh_prepare_derive(uint32_t ta_alg, size_t key_size_bits,
+			     TEE_OperationHandle *derive_op,
+			     TEE_ObjectHandle *derived_key,
+			     TEE_Attribute *attrs, unsigned int *nb_attrs);
+TEE_Result ecdh_prepare_derive(uint32_t ta_alg, size_t key_size_bits,
+				  TEE_OperationHandle *derive_op,
+				  TEE_ObjectHandle *derived_key,
+				  TEE_Attribute *attrs, unsigned int *nb_attrs);
+TEE_Result x25519_prepare_derive(uint32_t ta_alg, size_t key_size_bits,
+				  TEE_OperationHandle *derive_op,
+				  TEE_ObjectHandle *derived_key,
+				  TEE_Attribute *attrs, unsigned int *nb_attrs);
+TEE_Result x448_prepare_derive(uint32_t ta_alg, size_t key_size_bits,
+				  TEE_OperationHandle *derive_op,
+				  TEE_ObjectHandle *derived_key,
+				  TEE_Attribute *attrs, unsigned int *nb_attrs);
+TEE_Result sm2_kep_populate_keys(TEE_ObjectHandle *key1, TEE_ObjectHandle *key2,
+				 size_t key_size_bits);
+TEE_Result sm2_kep_prepare_derive(uint32_t ta_alg, size_t key_size_bits,
+				  TEE_OperationHandle *derive_op,
+				  TEE_ObjectHandle *derived_key,
+				  TEE_Attribute *attrs, unsigned int *nb_attrs);
+TEE_Result hkdf_populate_key(TEE_ObjectHandle *key1, size_t key_size_bits);
+TEE_Result hkdf_prepare_derive(uint32_t ta_alg, size_t key_size_bits,
+			       TEE_OperationHandle *derive_op,
+			       TEE_ObjectHandle *derived_key,
+			       TEE_Attribute *attrs, unsigned int *nb_attrs);
 
 TEE_Result prepare_keygen(uint32_t ta_key, size_t key_size_bits);
 TEE_Result keygen(uint32_t ta_key, size_t key_size_bits, unsigned int loops);

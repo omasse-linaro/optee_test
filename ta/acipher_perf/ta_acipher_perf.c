@@ -96,6 +96,20 @@ static TEE_Result (*static_prepare_acipher[])(uint32_t ta_alg, size_t key_size_b
 	/* TA_ALG_SM2_DSA_SM3 */ sm2_dsa_sm3_prepare_sign_verify
 };
 
+static TEE_Result (*static_prepare_derive[])(uint32_t ta_alg, size_t key_size_bits,
+					     TEE_OperationHandle *derive_op,
+					     TEE_ObjectHandle *derived_key,
+					     TEE_Attribute *attrs,
+					     unsigned int *nb_attrs) =
+{
+	/* TA_ALG_DH_DERIVE_SHARED_SECRET */ dh_prepare_derive,
+	/* TA_ALG_ECDH_DERIVE_SHARED_SECRET */ ecdh_prepare_derive,
+	/* TA_ALG_X25519 */ x25519_prepare_derive,
+	/* TA_ALG_X448 */ x448_prepare_derive,
+	/* TA_ALG_SM2_KEP */ sm2_kep_prepare_derive,
+	/* TA_ALG_HKDF */ hkdf_prepare_derive
+};
+
 TEE_Result prepare_keygen(uint32_t ta_key,
 			  size_t key_size_bits)
 {
@@ -189,7 +203,13 @@ TEE_Result prepare_op(uint32_t ta_key, size_t key_size_bits, uint32_t ta_alg)
 		res = static_prepare_acipher[ta_alg](ta_alg, key_size_bits,
 						     &sign_op, &verify_op,
 						     &input, &output);
-	else
+	else if (ta_alg <= TA_ALG_HKDF) {
+		uint32_t index = ta_alg - TA_ALG_SM2_DSA_SM3 - 1;
+		res = static_prepare_derive[index](ta_alg, key_size_bits,
+						   &derive_op, &derived_key,
+						   derive_attrs,
+						   &derive_nb_attrs);
+	} else
 		res = TEE_ERROR_NOT_SUPPORTED;
 
 	if (res) {
@@ -220,6 +240,37 @@ TEE_Result prepare_op(uint32_t ta_key, size_t key_size_bits, uint32_t ta_alg)
 		}
 
 		res = TEE_SetOperationKey(verify_op, operation_key1);
+		if (res) {
+			EMSG("Fail to set key");
+			return res;
+		}
+	}
+
+	if (derive_op != TEE_HANDLE_NULL) {
+		switch (ta_alg)
+		{
+		case TA_ALG_SM2_KEP:
+			res = sm2_kep_populate_keys(&operation_key1,
+						    &operation_key2,
+						    key_size_bits);
+			if (res)
+				break;
+
+			res = TEE_SetOperationKey2(derive_op, operation_key1,
+						   operation_key2);
+			break;
+		case TA_ALG_HKDF:
+			res = hkdf_populate_key(&operation_key1,
+						key_size_bits);
+			if (res)
+				break;
+
+			res = TEE_SetOperationKey(derive_op, operation_key1);
+			break;
+		default:
+			res = TEE_SetOperationKey(derive_op, operation_key1);
+			break;
+		}
 		if (res) {
 			EMSG("Fail to set key");
 			return res;
@@ -306,8 +357,8 @@ TEE_Result verify(uint32_t ta_alg, unsigned int loop)
 
 	while (loop-- > 0) {
 		res = TEE_AsymmetricVerifyDigest(verify_op, NULL, 0, input.data,
-					       input.size, output.data,
-					       output.size);
+						 input.size, output.data,
+						 output.size);
 		if (res) {
 			EMSG("Fail to verify 0x%x", res);
 			return res;
@@ -381,7 +432,26 @@ TEE_Result decrypt(uint32_t ta_alg, unsigned int loop)
 
 TEE_Result derive(uint32_t ta_alg, unsigned int loop)
 {
-	return TEE_ERROR_NOT_IMPLEMENTED;
+	switch (ta_alg) {
+	case TA_ALG_DH_DERIVE_SHARED_SECRET:
+	case TA_ALG_ECDH_DERIVE_SHARED_SECRET:
+	case TA_ALG_X25519:
+	case TA_ALG_X448:
+	case TA_ALG_SM2_KEP:
+	case TA_ALG_HKDF:
+		break;
+	default:
+		return TEE_ERROR_NOT_SUPPORTED;
+	}
+
+	while (loop-- > 0) {
+		TEE_ResetTransientObject(derived_key);
+
+		TEE_DeriveKey(derive_op, derive_attrs, derive_nb_attrs,
+			      derived_key);
+	}
+
+	return TEE_SUCCESS;
 }
 
 void free_ta_ctx(void)
